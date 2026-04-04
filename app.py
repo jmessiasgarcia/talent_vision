@@ -1,308 +1,76 @@
-# Importante para predecir 2 variables
-from scipy.stats import binomtest
-from sklearn.metrics import accuracy_score
-from sklearn.tree import DecisionTreeClassifier
-from sklearn.tree import DecisionTreeClassifier, plot_tree
-from scipy import stats
-from sklearn.metrics import confusion_matrix, classification_report
-import plotly.graph_objects as objects
-from sklearn.metrics import confusion_matrix
-from sklearn.metrics import classification_report, confusion_matrix
-import plotly.figure_factory as ff
-from sklearn.metrics import balanced_accuracy_score, recall_score
-from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
-from sklearn.metrics import accuracy_score, recall_score
-from scipy.stats import pearsonr, spearmanr, ttest_ind, pointbiserialr, f_oneway, chi2_contingency
-from scipy.stats import ttest_ind, pointbiserialr, spearmanr, f_oneway, chi2_contingency
-from scipy.stats import ttest_ind, pointbiserialr, pearsonr, f_oneway, chi2_contingency
-from scipy.stats import ttest_ind, pointbiserialr, chi2_contingency
-from scipy.stats import f_oneway
-from sklearn.multioutput import MultiOutputRegressor
-import plotly.graph_objects as go  # <--- Asegúrate de tener esta línea
-import altair as alt
-from sklearn.model_selection import cross_val_score
-import scipy.stats as stats
-import plotly.graph_objects as go
-from sklearn.metrics import mean_absolute_error, r2_score
-from sklearn.model_selection import train_test_split
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import davies_bouldin_score
-from sklearn.metrics import silhouette_score
-import matplotlib.pyplot as plt
-import seaborn as sns
-import streamlit as st
-from sklearn.linear_model import LogisticRegression
-from sklearn.preprocessing import StandardScaler
-from sklearn.model_selection import train_test_split  # Por si lo necesitas luego
-import pandas as pd
-from scipy.stats import ttest_ind, pointbiserialr
+# 1. Librerías Base
+from kpi_engine import calculate_general_kpis
 import os
+import pandas as pd
+import numpy as np
+from data_engine import load_and_process_data
+from stats_engine import run_statistical_analysis, run_predictive_model
+from visuals import apply_visual_config
+from ia_engine import run_ia_pipeline
+
+# 2. Interfaz y Visualización
+import streamlit as st
 import plotly.express as px
+from visuals import apply_visual_config
+
+# 3. Ciencia de Datos y ML
 from sklearn.preprocessing import StandardScaler
 from sklearn.cluster import KMeans
-from sklearn.decomposition import PCA
-import numpy as np
-from scipy.stats import ttest_ind, pointbiserialr
+from sklearn.tree import DecisionTreeClassifier
 
 
-st.set_page_config(page_title="RRHH Analytics Dashboard", layout="wide")
-
-# # --- CONFIGURACIÓN DE ESTILO GLOBAL (CSS) ÚNICO Y CORREGIDO ---
-st.markdown("""
-    <style>
-    /* 1. Importación de Fuente */
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;700&display=swap');
-
-    /* 2. Configuración de Fondo y Limpieza de UI */
-    .stApp {
-        background-color: #EEEEEE;
-    }
-    [data-testid="stDecoration"] { display: none; }
-    header[data-testid="stHeader"] { background: transparent !important; }
-    .block-container { padding-top: 2rem !important; }
-
-
-
-
-    /* 5. Estilo de Métricas (KPIs) */
-    [data-testid="stMetricValue"] {
-        font-family: 'Inter', sans-serif !important;
-        font-weight: 700 !important;
-        color: #353639 !important;
-    }
-    [data-testid="stMetricLabel"] p {
-        color: #353639 !important;
-        font-size: 1rem !important;
-    }
-
-
-    /* 7. Arreglo para el Toolbar (opcional) */
-    [data-testid="stToolbar"] {
-        right: 2rem;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
-# 2. Carga de datos
-base_path = os.path.dirname(os.path.abspath(__file__))
-file_name = 'full_RRHH.csv'
-csv_path = os.path.join(base_path, file_name)
-
-
-@st.cache_data
-def load_data(path):
-    if not os.path.exists(path):
-        return None
-    return pd.read_csv(path)
-
-
-RRHH_full = load_data(csv_path)
-
-# Verificación de carga
-if RRHH_full is None:
-    st.error(f"❌ No se encontró el archivo '{file_name}'")
-    st.stop()  # Detiene la ejecución si no hay datos
-
-# --- SECCIÓN 1: TÍTULO Y MÉTRICAS (KPIs) ---
-# El logo ocupa 1 parte y el título 4
-# --- CÁLCULO DE EMPLEADOS TOTALES ---
-# Contamos cuántos IDs distintos existen en la base de datos
-total_empleados_unicos = RRHH_full['ID'].nunique()
-
-# --- SECCIÓN 1: TÍTULO Y MÉTRICAS (KPIs) ---
-st.title("Rapid Express: People Analytics Dashboard")
-
-# Usamos un f-string para meter el número dentro del texto
-st.markdown(
-    f"### Porque detrás de cada ruta, hay una historia: cuidamos de las **{total_empleados_unicos}** personas que mueven nuestro motor."
+# 4. Estadística
+import scipy.stats as stats
+from scipy.stats import (
+    pearsonr,
+    spearmanr,
+    ttest_ind,
+    pointbiserialr,
+    f_oneway,
+    chi2_contingency,
 )
 
-# ==========================================
-# 1. PREPROCESAMIENTO (REFORZADO)
-# ==========================================
+apply_visual_config()
 
-# 1. Limpieza previa de la columna en el DataFrame original
-# Convertimos a minúsculas y quitamos espacios al principio/final
+base_path = os.path.dirname(os.path.abspath(__file__))
+csv_path = os.path.join(base_path, 'full_RRHH.csv')
+RRHH_full, df_id = load_and_process_data(csv_path)
+if RRHH_full is None:
+    st.error("❌ No se encontró el archivo CSV")
+    st.stop()
 
-RRHH_full['Education'] = RRHH_full['Education'].astype(
-    str).str.lower().str.strip()
+total_empleados_unicos = df_id['ID'].nunique()
 
-# 2. Definimos la jerarquía oficial (asegurando minúsculas)
-edu_mapping = {
-    "high school": 1,
-    "graduate": 2,
-    "postgraduate": 3,
-    "master and doctor": 4
-}
-
-# 3. Aplicamos el mapeo
-RRHH_full['Education'] = RRHH_full['Education'].map(edu_mapping)
-
-# Convertimos TRUE/FALSE a 1/0 para que el modelo no se confunda
-RRHH_full['Social_drinker'] = RRHH_full['Social_drinker'].astype(int)
-RRHH_full['Social_smoker'] = RRHH_full['Social_smoker'].astype(int)
-
-# 4. Verificación y limpieza de nulos
-# Si algo no coincidió, le ponemos 1 (High School) por defecto
-RRHH_full['Education'] = RRHH_full['Education'].fillna(1).astype(int)
-
-# --- AGRUPACIÓN AMPLIADA ---
-# --- AGRUPACIÓN COMPLETA Y SEGURA ---
-df_id = RRHH_full.groupby('ID').agg({
-    # Variables de Desempeño y Control
-    'Hit_target': 'mean',
-    'Work_load_Average_day': 'mean',
-    'Disciplinary_failure': 'max',      # Si tuvo 1 fallo, queda marcado
-    'Absenteeism_hours': 'sum',         # Total de horas perdidas
-
-    # Variables de Perfil y Estabilidad
-    'Service_time': 'max',
-    'Age': 'mean',
-    'Education': 'max',
-    'Son': 'max',
-    'Pet': 'max',
-
-    # Variables de Salud y Hábitos
-    'Body_mass_index': 'mean',
-    'Social_drinker': 'max',
-    'Social_smoker': 'max',
-
-    # Variables de Logística (Muy importantes para Ausentismo)
-    'Transportation_expense': 'mean',
-    'Distance_Residence_Work': 'mean'
-}).reset_index()
-
-# Ahora creamos los KPIs que ya no fallarán:
-df_id['Resiliencia_Score'] = df_id['Hit_target'] / \
-    ((df_id['Work_load_Average_day'] / 100) + 0.1)
-
-df_id['Indice_Lealtad'] = df_id['Service_time'] / \
-    (df_id['Absenteeism_hours'] + 1)
-
-# ==========================================
-# 2. SELECCIÓN Y ESCALADO (X)
-# ==========================================
-
-# Seleccionamos las columnas que queremos que la IA analice
-features = ['Age', 'Body_mass_index', 'Son',
-            'Education', 'Social_drinker', 'Social_smoker']
-X = df_id[features]
-
-# Aplicamos el Escalado (Z-Score)
-# Esto hace que la "Edad" y los "Hijos" tengan la misma importancia
-scaler = StandardScaler()
-X_scaled_array = scaler.fit_transform(X)
-
-# Convertimos el resultado de nuevo a un DataFrame limpio
-X_scaled = pd.DataFrame(X_scaled_array, columns=X.columns)
+df_id, score_sil, score_db, X_scaled = run_ia_pipeline(df_id)
+df_hit_stat, df_disc_stat, df_results = run_statistical_analysis(df_id)
+df_importance = run_predictive_model(RRHH_full)
+df_disc = df_disc_stat.sort_values('Impacto', ascending=True)
+df_hit = df_hit_stat.sort_values('Impacto', ascending=True)
 
 
-# ==========================================
-# 3. KMEANS (ESTABLE)
-# ==========================================
-
-kmeans = KMeans(n_clusters=3, random_state=42, n_init=20)
-cluster_labels = kmeans.fit_predict(X_scaled)
-
-# Guardamos el grupo (0, 1 o 2) en nuestra tabla
-df_id['Cluster_ID'] = cluster_labels
-
-# ==========================================
-# 4. MAPEO DINÁMICO (NOMBRES DE SEGMENTOS)
-# ==========================================
-
-# Ordenamos los grupos por Edad Media para que los nombres siempre tengan sentido
-# (El grupo de más edad siempre será "Senior")
-centros_edad = df_id.groupby('Cluster_ID')['Age'].mean().sort_values().index
-
-mapeo_nombres = {
-    centros_edad[0]: "Talento Enfocado",  # Los más jóvenes
-    centros_edad[1]: "Motor Familiar",   # Edad intermedia
-    centros_edad[2]: "Talento Senior"    # Los mayores
-}
-
-df_id['Segmento'] = df_id['Cluster_ID'].map(mapeo_nombres)
-
-# ==========================================
-# 4. MAPEO DE SEGMENTOS (LÓGICO Y DINÁMICO)
-# ==========================================
-# CRÍTICO: Ordenamos los clusters por EDAD MEDIA para que el nombre siempre coincida
-# con la realidad demográfica del grupo.
-
-centros_edad = df_id.groupby('Cluster_ID')['Age'].mean().sort_values().index
-
-# age_order[0] = El grupo más joven -> Talento Enfocado
-# age_order[1] = El grupo intermedio -> Motor Familiar
-# age_order[2] = El grupo mayor -> Talento Senior
-
-mapeo_dinamico = {
-    centros_edad[0]: "Talento Enfocado",
-    centros_edad[1]: "Motor Familiar",
-    centros_edad[2]: "Talento Senior"
-}
-
-df_id['Segmento'] = df_id['Cluster_ID'].map(mapeo_dinamico)
-
-# ==========================================
-# 5. PCA (VISUALIZACIÓN)
-# ==========================================
-pca = PCA(n_components=2, random_state=42)
-pca_data = pca.fit_transform(X_scaled)
-
-df_id['PCA1'] = pca_data[:, 0]
-df_id['PCA2'] = pca_data[:, 1]
-
-# Varianza explicada para tu reporte técnico
-total_var = pca.explained_variance_ratio_.sum() * 100
-
-# ==========================================
-# 6. MÉTRICAS FINALES
-# ==========================================
+st.title("Rapid Express: People Analytics Dashboard")
+st.markdown(
+    f"### Porque detrás de cada ruta, hay una historia: cuidamos de las **{total_empleados_unicos}** personas que mueven nuestro motor.")
 
 counts = df_id['Segmento'].value_counts()
-
-# Obtenemos los totales de forma segura (si no existe el segmento, pone 0)
 total_a = counts.get("Motor Familiar", 0)
 total_b = counts.get("Talento Enfocado", 0)
 total_c = counts.get("Talento Senior", 0)
 
-# ==========================================
-# 3. RENDERIZADO VISUAL (STREAMLIT)
-# ==========================================
-st.divider()
-
-# --- Fila 1: Métricas de Calidad de la IA ---
-# --- Fila 2: KPIs de Segmentación (Volumen) ---
 st.write("### Distribución de la Fuerza Laboral")
 col1, col2, col3 = st.columns(3)
 
 col1.metric("Motor Familiar", f"{total_a} talentos", delta="42%")
 col2.metric("Talento Enfocado", f"{total_b} talentos", delta="39%")
 col3.metric("Talento Senior", f"{total_c} talentos", delta="19%")
-# ==========================================
+
 st.divider()
 
 
-st.write("### Métricas de Calidad del Clustering")
-
-m_col1, m_col2 = st.columns(2)
-
-score = silhouette_score(X_scaled, cluster_labels)
-db_score = davies_bouldin_score(X_scaled, cluster_labels)
-
-
-m_col1.metric(
-    "Silhouette Score",
-    f"{score:.2f}",
-    help="Mide qué tan compactos y separados están los clusters. Más cerca de 1 es mejor."
-)
-
-m_col2.metric(
-    "Davies-Bouldin Score",
-    f"{db_score:.2f}",
-    help="Evalúa la separación entre clusters. Más cerca de 0 es mejor."
-)
-
+st.write("### Calidad del Modelo Predictivo")
+m1, m2 = st.columns(2)
+m1.metric("Silhouette Score", f"{score_sil:.2f}")
+m2.metric("Davies-Bouldin Index", f"{score_db:.2f}")
 
 orden_segmentos = [
     "Motor Familiar",
@@ -323,13 +91,11 @@ segmento_seleccionado = st.selectbox(
 
 df_plot = df_id.copy()
 
-# Aplicar jitter solo para visualización
 df_plot["PCA1_jitter"] = df_plot["PCA1"] + \
     np.random.uniform(-0.1, 0.1, len(df_plot))
 df_plot["PCA2_jitter"] = df_plot["PCA2"] + \
     np.random.uniform(-0.1, 0.1, len(df_plot))
 
-# Filtro de segmento
 if segmento_seleccionado != "Todos los empleados":
     df_plot = df_plot[df_plot["Segmento"] == segmento_seleccionado]
 
@@ -382,26 +148,26 @@ fig_scatter.update_layout(
     plot_bgcolor="#EEEEEE",
     paper_bgcolor="#EEEEEE",
     xaxis=dict(
-        title=None,          # <--- Esto quita el nombre del eje X
+        title=None,
         showgrid=False,
         zeroline=False,
-        showline=False,      # He cambiado a False para un look más moderno
+        showline=False,
         showticklabels=False
     ),
     yaxis=dict(
-        title=None,          # <--- Esto quita el nombre del eje Y
+        title=None,
         showgrid=False,
         zeroline=False,
-        showline=False,      # He cambiado a False para un look más moderno
+        showline=False,
         showticklabels=False
     ),
-    # Ajusta los márgenes para que use todo el espacio
+
     margin=dict(l=20, r=20, t=40, b=20)
 )
 
 
 fig_scatter.update_traces(
-    mode="markers",  # <--- Quitamos "text" de aquí
+    mode="markers",
     marker=dict(
         size=22,
         line=dict(width=0.5, color="black"),
@@ -470,17 +236,13 @@ with st.expander("Ver detalle de decisiones estratégicas por Segmento"):
             * Adaptación de rutas (menos entregas) y vehículos automáticos.
         """)
 
-# --- EXPANDER DE DATOS Y MÉTRICAS TÉCNICAS ---
-with st.expander("Datos del trabajador", expanded=False):
 
-    # Seleccionamos las 6 variables clave + el ID y el Segmento asignado
-    # Dentro de tu st.expander...
+with st.expander("Datos del trabajador", expanded=False):
     df_completo_ia = df_id[[
         'ID', 'Segmento', 'Age', 'Body_mass_index', 'Son',
         'Work_load_Average_day', 'Hit_target', 'Absenteeism_hours'
     ]]
 
-# --- TABLA CON ENFOQUE EN TOTALES ---
     st.dataframe(
         df_completo_ia,
         width='stretch',
@@ -488,23 +250,17 @@ with st.expander("Datos del trabajador", expanded=False):
         column_config={
             "ID": st.column_config.NumberColumn("ID"),
             "Segmento": st.column_config.TextColumn("Segmento"),
-
-            # El ausentismo como la métrica de impacto total
             "Absenteeism_time_in_hours": st.column_config.NumberColumn(
                 "Total Horas Ausencia",
                 help="Suma acumulada de todas las faltas",
-                format="%d h 🕒",  # Le añadimos el icono para que sea más humano
+                format="%d h 🕒",
             ),
-
-            # Rendimiento
             "Hit_target": st.column_config.ProgressColumn(
                 "Cumplimiento",
                 format="%d%%",
                 min_value=0,
                 max_value=100
             ),
-
-            # Carga de trabajo
             "Work_load_Average_day": st.column_config.NumberColumn(
                 "Carga Media",
                 format="%.0f"
@@ -525,57 +281,15 @@ with st.expander("Ver infogramas de perfil"):
         st.image("assets/perfil_c.jpg")
         st.caption("Talento Senior")
 
-
-# --- CÁLCULO DEL MÉTODO DEL CODO ---
-# 1. Preparar datos (usando tu misma lógica de X_scaled)
-# Asegúrate de que X_scaled esté definido antes de esto
 distortions = []
 K_range = range(1, 11)
 
-for k in K_range:
-    kmeanModel = KMeans(n_clusters=k, random_state=42, n_init=10)
-    kmeanModel.fit(X_scaled)
-    distortions.append(kmeanModel.inertia_)
 
-# 2. Crear el Gráfico con Plotly
-fig_elbow = px.line(
-    x=list(K_range),
-    y=distortions,
-    markers=True,
-    title="Método del Codo para Determinar el Número Óptimo de Segmentos",
-    labels={'x': 'Número de Clusters (k)', 'y': 'Inercia (WCSS)'},
-    color_discrete_sequence=["#51A242"]
-)
-
-# Estilo para que combine con tu dashboard negro/gris
-fig_elbow.update_layout(
-    plot_bgcolor='#EEEEEE',
-    paper_bgcolor='#EEEEEE',
-    font=dict(color="black"),
-    xaxis=dict(showgrid=False, dtick=1),
-    yaxis=dict(showgrid=False)
-)
-
-
-# 1. Coste Estimado por Transporte (Impacto Logístico)
-# Suma total de gastos de transporte en registros de ausencia
 gasto_total_transporte = RRHH_full[RRHH_full['Absenteeism_hours']
                                    > 0]['Transportation_expense'].sum()
-
-# 2. Índice de Salud (BMI Promedio)
-# Para entender el perfil físico de la plantilla
 bmi_promedio = RRHH_full['Body_mass_index'].mean()
-
-# 3. Tasa de Reincidencia (Disciplinary_failure)
-# Porcentaje de casos que terminaron en fallo disciplinario
 tasa_fallos = (RRHH_full['Disciplinary_failure'].sum() / len(RRHH_full)) * 100
-
-# 4. Factor de Compromiso Familiar (Media de 'Son')
-# Promedio de hijos por empleado ausente (para entender cargas familiares)
 promedio_hijos = RRHH_full['Son'].mean()
-
-st.divider()
-# --- RENDERIZADO EN COLUMNAS ---
 st.write("### Análisis de Perfil y Riesgo")
 
 nk1, nk2, nk3, nk4 = st.columns(4)
@@ -587,7 +301,6 @@ with nk1:
 
 with nk2:
     st.metric(label="IMC Promedio", value=f"{bmi_promedio:.1f}")
-    # Color según rango de salud (opcional)
     status_bmi = "Sobrepeso" if bmi_promedio > 25 else "Normal"
     st.caption(f"Perfil: {status_bmi}")
 
@@ -602,51 +315,16 @@ with nk4:
 
 st.divider()
 
-st.header("Ciclo Estacional de Absentismo")
 
-st.write("### Impacto en la Operación Global")
+kpis = calculate_general_kpis(RRHH_full)
 
-# Cálculos basados en tus datos
-total_horas_absentismo = RRHH_full['Absenteeism_hours'].sum()
-# Asumiendo 75168 como constante de capacidad total o calculada
-total_horas_laborables = 75168
-tasa_ausentismo = (total_horas_absentismo / total_horas_laborables) * 100
+st.metric("Tasa Ausentismo", f"{kpis['tasa_abs']:.2f}%")
 
-col_inv1, col_inv2, col_inv3 = st.columns(3)
-
-with col_inv1:
-    st.metric(
-        label="Total Horas de Absentismo",
-        value=f"{total_horas_absentismo:,}".replace(",", "."),
-        help="Suma total de horas no trabajadas registradas en el periodo de 3 años."
-    )
-
-with col_inv2:
-    st.metric(
-        label="Capacidad Laboral Total",
-        value=f"{total_horas_laborables:,}".replace(",", "."),
-        help="Total de horas disponibles contratadas por la organización."
-    )
-
-with col_inv3:
-    # Usamos un color de delta inverso (rojo si sube) para la tasa de ausencia
-    st.metric(
-        label="Tasa de Ausentismo Global",
-        value=f"{tasa_ausentismo:.2f} %",  # Ejemplo de comparativa
-        help="Porcentaje de tiempo perdido sobre el total de la capacidad instalada."
-    )
-
-# 1. Unimos los datos
 df_estacional = RRHH_full.merge(df_id[['ID', 'Segmento']], on='ID')
-
-# 2. FILTRADO CRÍTICO: Quitamos el mes 0 antes de agrupar
 df_estacional = df_estacional[df_estacional['Month_absence'] != 0]
-
-# 3. Agrupamos (ahora solo habrá meses del 1 al 12)
 df_mensual = df_estacional.groupby(['Month_absence', 'Segmento'])[
     'Absenteeism_hours'].sum().reset_index()
 
-# 4. Creamos el gráfico
 fig_estacional = px.line(
     df_mensual,
     x='Month_absence',
@@ -659,22 +337,21 @@ fig_estacional = px.line(
     color_discrete_sequence=["#093C2B", '#65E74B', "#51A242"]
 )
 
-# --- AJUSTE EXTREMO PARA EL EJE X ---
 fig_estacional.update_layout(
     plot_bgcolor='#EEEEEE',
     paper_bgcolor='#EEEEEE',
     font=dict(family="Inter", color="black"),
     xaxis=dict(
-        showgrid=False,     # Quita líneas verticales
-        showline=False,     # Quita la línea del eje X
-        zeroline=False,     # Quita la línea del cero
+        showgrid=False,
+        showline=False,
+        zeroline=False,
         dtick=1,
         tickfont=dict(color='black')
     ),
     yaxis=dict(
-        showgrid=False,     # Quita líneas horizontales
-        showline=False,     # Quita la línea del eje Y
-        zeroline=False,     # Quita la línea del cero
+        showgrid=False,
+        showline=False,
+        zeroline=False,
         tickfont=dict(color='black')
     ),
     legend=dict(bgcolor='rgba(0,0,0,0)')
@@ -687,381 +364,49 @@ fig_estacional.update_traces(
 
 st.plotly_chart(fig_estacional, width='stretch')
 
-
 st.divider()
 
+st.divider()
 st.header("Lógica & Exito: ¿Qué impulsa el rendimiento y la buena conducta?")
 
-
-# Limpieza de nombres de columnas
-RRHH_full.columns = RRHH_full.columns.str.strip()
-
-# Selección de variables global
-features_pred = [
-    'Distance_Residence_Work', 'Service_time',
-    'Age', 'Son', 'Pet', 'Body_mass_index',
-    'Social_drinker', 'Social_smoker', 'Education'
-]
-
-
-# --- Preparación ---
-df_id['Good_Conduct'] = 1 - df_id['Disciplinary_failure']
-
-# --- Clasificación de variables con test explícito ---
-continuous_vars = {
-    'Distance_Residence_Work': 'pearson',
-    'Service_time': 'pearson',
-    'Age': 'pearson',
-    'Body_mass_index': 'pearson',
-    'Son': 'pearson',
-    'Pet': 'pearson'
-}
-
-binary_vars = {
-    'Social_drinker': 'ttest',
-    'Social_smoker': 'ttest'
-}
-
-categorical_vars = {
-    'Education': 'anova_spearman'
-}
-
-results_table = []
-
-# --- 1. Impacto vs Hit_target ---
-impact_hit = []
-
-# Continuous vars vs Hit_target (Pearson)
-for var, test in continuous_vars.items():
-    r, p_val = pearsonr(df_id[var], df_id['Hit_target'])
-    impact_hit.append({'Variable': var, 'Impacto': r})
-    results_table.append({
-        'Variable': var,
-        'Tipo': 'Numérica',
-        'Test': 'Pearson',
-        'p-value': round(p_val, 4),
-        'Impacto': round(r, 4),
-        'Target': 'Hit_target',
-        'Conclusión': 'Significativa' if p_val < 0.05 else 'No significativa'
-    })
-
-# Binary vars vs Hit_target (ANOVA / diferencia media)
-for var, test in binary_vars.items():
-    grupos = [df_id[df_id[var] == c]['Hit_target']
-              for c in df_id[var].unique()]
-    if len(grupos) > 1:
-        f_stat, p_val = f_oneway(*grupos)
-        impact = max([g.mean() for g in grupos]) - \
-            min([g.mean() for g in grupos])
-    else:
-        f_stat, p_val = np.nan, np.nan
-        impact = 0
-    impact_hit.append({'Variable': var, 'Impacto': impact})
-    results_table.append({
-        'Variable': var,
-        'Tipo': 'Boolean',
-        'Test': 'ANOVA / Diferencia media',
-        'p-value': round(p_val, 4) if not np.isnan(p_val) else np.nan,
-        'Impacto': round(impact, 4),
-        'Target': 'Hit_target',
-        'Conclusión': 'Significativa' if (not np.isnan(p_val) and p_val < 0.05) else 'No significativa'
-    })
-
-# Education vs Hit_target (agrupando por empleado)
-if 'Education' in df_id.columns and 'ID' in df_id.columns:
-    df_edu = df_id.groupby('ID').agg({
-        'Education': 'max',  # o el valor representativo
-        'Hit_target': 'mean'
-    }).reset_index()
-
-    # ANOVA
-    categorias = df_edu['Education'].unique()
-    datos_por_grupo = [df_edu[df_edu['Education'] == c]
-                       ['Hit_target'] for c in categorias]
-    if len(datos_por_grupo) > 1:
-        f_stat, p_val = f_oneway(*datos_por_grupo)
-        impact = max([g.mean() for g in datos_por_grupo]) - \
-            min([g.mean() for g in datos_por_grupo])
-    else:
-        f_stat, p_val, impact = np.nan, np.nan, 0
-
-    # Spearman
-    r_s, p_s = spearmanr(df_edu['Education'],
-                         df_edu['Hit_target'], nan_policy='omit')
-    impact_hit.append({'Variable': 'Education', 'Impacto': r_s})
-    results_table.append({
-        'Variable': 'Education',
-        'Tipo': 'Ordinal',
-        'Test': 'ANOVA + Spearman',
-        'p-value': round(p_s, 4),
-        'Impacto': round(r_s, 4),
-        'Target': 'Hit_target',
-        'Conclusión': 'Significativa' if p_s < 0.05 else 'No significativa'
-    })
-
-# --- 2. Impacto vs Disciplinary_failure ---
-impact_disc = []
-
-# Continuous vars vs Disciplinary_failure (T-test / Point-biserial)
-for var, test in continuous_vars.items():
-    grupo_falta = df_id[df_id['Disciplinary_failure'] == 1][var]
-    grupo_no_falta = df_id[df_id['Disciplinary_failure'] == 0][var]
-    t_stat, p_val = ttest_ind(grupo_falta, grupo_no_falta, nan_policy='omit')
-    df_temp = df_id[[var, 'Disciplinary_failure']].dropna()
-    corr_biserial, _ = pointbiserialr(
-        df_temp['Disciplinary_failure'], df_temp[var])
-    impact_disc.append({'Variable': var, 'Impacto': corr_biserial})
-    results_table.append({
-        'Variable': var,
-        'Tipo': 'Numérica',
-        'Test': 'T-test / Point-biserial',
-        'p-value': round(p_val, 4),
-        'Impacto': round(corr_biserial, 4),
-        'Target': 'Disciplinary_failure',
-        'Conclusión': 'Significativa' if p_val < 0.05 else 'No significativa'
-    })
-
-# Binary vars vs Disciplinary_failure (Chi² / V de Cramer)
-for var, test in binary_vars.items():
-    tabla = pd.crosstab(df_id[var], df_id['Disciplinary_failure'])
-    chi2, p_val, dof, expected = chi2_contingency(tabla)
-    n = tabla.sum().sum()
-    min_dim = min(tabla.shape)-1
-    v_cramer = np.sqrt(chi2/(n*min_dim)) if min_dim > 0 else np.nan
-    impact_disc.append({'Variable': var, 'Impacto': v_cramer})
-    results_table.append({
-        'Variable': var,
-        'Tipo': 'Boolean',
-        'Test': 'Chi² / V de Cramer',
-        'p-value': round(p_val, 4),
-        'Impacto': round(v_cramer, 4),
-        'Target': 'Disciplinary_failure',
-        'Conclusión': 'Significativa' if p_val < 0.05 else 'No significativa'
-    })
-
-# Education vs Disciplinary_failure (Chi² / V de Cramer)
-tabla = pd.crosstab(df_edu['Education'], df_id.groupby('ID')[
-                    'Disciplinary_failure'].max())
-chi2, p_val, dof, expected = chi2_contingency(tabla)
-n = tabla.sum().sum()
-min_dim = min(tabla.shape)-1
-v_cramer = np.sqrt(chi2/(n*min_dim)) if min_dim > 0 else np.nan
-impact_disc.append({'Variable': 'Education', 'Impacto': v_cramer})
-results_table.append({
-    'Variable': 'Education',
-    'Tipo': 'Ordinal',
-    'Test': 'Chi² / V de Cramer',
-    'p-value': round(p_val, 4),
-    'Impacto': round(v_cramer, 4),
-    'Target': 'Disciplinary_failure',
-    'Conclusión': 'Significativa' if p_val < 0.05 else 'No significativa'
-})
-
-# --- 3. Gráficos lado a lado ---
-st.write("### Impacto de Variables: Disciplinary vs Hit_target")
+# Reconectamos las columnas con los datos que vienen del motor (df_disc_stat y df_hit_stat)
 col1, col2 = st.columns(2)
 
 with col1:
-    df_disc = pd.DataFrame(impact_disc).sort_values('Impacto', ascending=True)
-    fig_disc = px.bar(df_disc, x='Impacto', y='Variable', orientation='h',
+    # Usamos df_disc_stat (el resultado del motor para disciplina)
+    fig_disc = px.bar(df_disc_stat.sort_values('Impacto', ascending=True),
+                      x='Impacto', y='Variable', orientation='h',
                       title="Impacto en Disciplina",
                       color='Impacto', color_continuous_scale='RdYlGn',
                       template='plotly_white')
     fig_disc.update_layout(height=400, margin=dict(l=20, r=20, t=50, b=20),
                            coloraxis_showscale=False,
-                           yaxis=dict(tickfont=dict(size=17)),
+                           yaxis=dict(tickfont=dict(size=14)),
                            plot_bgcolor='#EEEEEE', paper_bgcolor='#EEEEEE')
-    st.plotly_chart(fig_disc, width='stretch')
+    st.plotly_chart(fig_disc, use_container_width=True)
 
 with col2:
-    df_hit = pd.DataFrame(impact_hit).sort_values('Impacto', ascending=True)
-    fig_hit = px.bar(df_hit, x='Impacto', y='Variable', orientation='h',
+    # Usamos df_hit_stat (el resultado del motor para rendimiento)
+    fig_hit = px.bar(df_hit_stat.sort_values('Impacto', ascending=True),
+                     x='Impacto', y='Variable', orientation='h',
                      title="Impacto en Rendimiento",
                      color='Impacto', color_continuous_scale='RdYlGn',
                      template='plotly_white')
     fig_hit.update_layout(height=400, margin=dict(l=20, r=20, t=50, b=20),
                           coloraxis_showscale=False,
-                          yaxis=dict(tickfont=dict(size=17)),
+                          yaxis=dict(tickfont=dict(size=14)),
                           plot_bgcolor='#EEEEEE', paper_bgcolor='#EEEEEE')
-    st.plotly_chart(fig_hit, width='stretch')
+    st.plotly_chart(fig_hit, use_container_width=True)
 
-# --- 4. Tabla de resultados ---
 with st.expander("Tabla de Tests y Resultados", expanded=False):
-    df_results = pd.DataFrame(results_table)
+    # Usamos df_results que también viene del motor
     st.dataframe(df_results, width='stretch')
-
-st.divider()
-# --- 2. MACHINE LEARNING (EL PESO DE LAS VARIABLES) ---
-st.header("Work vs. Life")
-
-# Preparación de datos y entrenamiento (Igual que antes)
-X_data = RRHH_full[features_pred].dropna()
-y_p = RRHH_full.loc[X_data.index, ['Disciplinary_failure', 'Hit_target']]
-X_p = pd.get_dummies(X_data, columns=[
-                     'Education'], drop_first=True) if 'Education' in X_data.columns else pd.get_dummies(X_data, drop_first=True)
-
-X_train, X_test, y_train, y_test = train_test_split(
-    X_p, y_p, test_size=0.2, random_state=42)
-
-rf_model = MultiOutputRegressor(
-    RandomForestRegressor(n_estimators=200, random_state=42))
-rf_model.fit(X_train, y_train)
-
-
-# --- 1. MODELO DE DISCIPLINA (Clasificación) ---
-# Usamos class_weight='balanced' para compensar que hay pocos fallos
-model_disc = RandomForestClassifier(
-    n_estimators=200, class_weight='balanced', random_state=42)
-model_disc.fit(X_train, y_train.iloc[:, 0])
-y_pred_disc = model_disc.predict(X_test)
-
-# --- 2. MODELO DE RENDIMIENTO (Regresión) ---
-model_hit = RandomForestRegressor(n_estimators=200, random_state=42)
-model_hit.fit(X_train, y_train.iloc[:, 1])
-y_pred_hit = model_hit.predict(X_test)
-
-# --- 3. MÉTRICAS REALISTAS ---
-acc_bal = balanced_accuracy_score(
-    y_test.iloc[:, 0], y_pred_disc)  # Ajusta por desequilibrio
-# ¿Detectamos a los que fallan?
-rec_risk = recall_score(y_test.iloc[:, 0], y_pred_disc)
-
-c1, c3 = st.columns(2)
-
-with c1:
-    st.metric(
-        label="Poder Predictivo (Conducta)",
-        value="Moderado (54.9%)",
-        delta="Estadísticamente válido",
-        help="Capacidad del modelo para diferenciar perfiles positivos de riesgos."
-    )
-
-with c3:
-    st.metric(
-        label="Predictor de Rendimiento",
-        value="No lineal",
-        delta="-0.06 R²",
-        delta_color="off",
-        help="El rendimiento depende de factores externos no registrados en este estudio."
-    )
-
-st.write("")  # Espaciador
-# --- (Aquí sigue tu código de importancias y el gráfico fig_rf) ---
-
-# Preparación de datos
-X_data = RRHH_full[features_pred].dropna()
-y_p = RRHH_full.loc[X_data.index, ['Disciplinary_failure', 'Hit_target']]
-X_p = pd.get_dummies(X_data, columns=[
-                     'Education'], drop_first=True) if 'Education' in X_data.columns else pd.get_dummies(X_data, drop_first=True)
-
-X_train, X_test, y_train, y_test = train_test_split(
-    X_p, y_p, test_size=0.2, random_state=42)
-
-# Modelo Multi-Output
-rf_model = MultiOutputRegressor(
-    RandomForestRegressor(n_estimators=200, random_state=42))
-rf_model.fit(X_train, y_train)
-
-# Importancias
-imp_disc = rf_model.estimators_[0].feature_importances_
-imp_hit = rf_model.estimators_[1].feature_importances_
-
-df_imp_dual = pd.DataFrame({
-    'Variable': X_p.columns,
-    'Impacto Disciplina': imp_disc,
-    'Impacto Rendimiento': imp_hit
-}).melt(id_vars='Variable', var_name='Tipo de Impacto', value_name='Importancia')
-
-# Crear un diccionario de mapping para los dummies de Education
-education_map = {
-    'Education_1': "High School",
-    'Education_2': "Graduate",
-    'Education_3': "Postgraduate",
-    'Education_4': "Master & Doctor"
-}
-
-# Copiamos df_imp_dual para visualización
-df_vis = df_imp_dual.copy()
-
-# Reemplazamos solo las columnas de Education
-df_vis['Variable'] = df_vis['Variable'].replace(education_map)
-
-# Ahora usar df_vis en los gráficos
-col_left, col_right = st.columns(2)
-
-with col_left:
-    df_disc_plot = df_vis[df_vis['Tipo de Impacto'] == 'Impacto Disciplina'].sort_values(
-        'Importancia', ascending=True
-    )
-    fig_disc = px.bar(
-        df_disc_plot,
-        x='Importancia', y='Variable', orientation='h',
-        title='Impacto en Disciplina', template='plotly_white',
-        color='Importancia', color_continuous_scale='Greens'
-    )
-    fig_disc.update_layout(
-        plot_bgcolor="#EEEEEE",
-        paper_bgcolor="#EEEEEE",
-        xaxis=dict(tickfont=dict(size=17)),
-        yaxis=dict(tickfont=dict(size=17))
-    )
-    st.plotly_chart(fig_disc, width='stretch')
-
-with col_right:
-    df_hit_plot = df_vis[df_vis['Tipo de Impacto'] == 'Impacto Rendimiento'].sort_values(
-        'Importancia', ascending=True
-    )
-    fig_hit = px.bar(
-        df_hit_plot,
-        x='Importancia', y='Variable', orientation='h',
-        title='Impacto en Rendimiento', template='plotly_white',
-        color='Importancia', color_continuous_scale='Greens'
-    )
-    fig_hit.update_layout(
-        plot_bgcolor="#EEEEEE",
-        paper_bgcolor="#EEEEEE",
-        xaxis=dict(tickfont=dict(size=16)),
-        yaxis=dict(tickfont=dict(size=16))
-    )
-    st.plotly_chart(fig_hit, width='stretch')
-
-# --- EXTRACCIÓN AUTOMÁTICA DE INSIGHTS ---
-# Obtenemos las 3 variables más importantes para cada objetivo
-top_3_disc = df_imp_dual[df_imp_dual['Tipo de Impacto']
-                         == 'Impacto Disciplina'].nlargest(3, 'Importancia')
-top_3_hit = df_imp_dual[df_imp_dual['Tipo de Impacto']
-                        == 'Impacto Rendimiento'].nlargest(3, 'Importancia')
-
-
-with st.expander("Interpretación Estratégica de la IA", expanded=False):
-
-    def format_var(name):
-        return name.replace('_', ' ').title()
-
-    col_ins_1, col_ins_2 = st.columns(2)
-
-    with col_ins_1:
-        st.subheader("Foco: Disciplina")
-        st.write("Variables con mayor peso en la estabilidad conductual:")
-        for i, (idx, row) in enumerate(top_3_disc.iterrows()):
-            st.success(f"**{i+1}. {format_var(row['Variable'])}**")
-        st.caption(
-            "Estas variables son las que mejor separan a un perfil cumplidor de uno con riesgo disciplinario.")
-
-    with col_ins_2:
-        st.subheader("Foco: Rendimiento")
-        st.write("Variables clave para alcanzar los objetivos (Hit Target):")
-        for i, (idx, row) in enumerate(top_3_hit.iterrows()):
-            st.success(f"**{i+1}. {format_var(row['Variable'])}**")
-        st.caption(
-            "Optimizar o filtrar por estos factores maximiza la probabilidad de éxito operativo.")
 
 
 # ==========================================
 # IDENTIFICACIÓN DEL TALENTO IDEAL (PERFIL TOP)
 # ==========================================
 
-# Filtramos: Sin fallos, Rendimiento >= 95% Y Cero Absentismo
 df_talento_ideal = RRHH_full[
     (RRHH_full['Disciplinary_failure'] == 0) &
     (RRHH_full['Hit_target'] >= 95) &
@@ -1069,7 +414,6 @@ df_talento_ideal = RRHH_full[
 ]
 
 total_ideales = len(df_talento_ideal)
-# --- SECCIÓN: EL TALENTO IDEAL EN EXPANDER ---
 with st.expander("Ver Cuadro de Honor", expanded=False):
     # Filtramos: Sin fallos, Rendimiento >= 95% Y Cero Absentismo
     df_talento_ideal = RRHH_full[
@@ -1104,7 +448,6 @@ with st.expander("Ver Cuadro de Honor", expanded=False):
             "No hay empleados que cumplan los tres criterios simultáneamente (Disciplina + Rendimiento + Presencia)."
         )
 
-# --- 3. EXPLORADOR DE DATOS (EL DETALLE) ---
 with st.expander("Explorar Dataset Completo (RRHH_full)"):
     st.write("Auditoría de datos originales.")
     search_id = st.text_input("🔍 Buscar por ID de empleado:", "")
@@ -1125,29 +468,22 @@ with st.expander("Explorar Dataset Completo (RRHH_full)"):
 
 st.divider()
 
-# --- CÁLCULO DE LOS 4 KPIs CON TUS COLUMNAS ---
-
-# 1. Mes pico de carga (Basado en 'Month_absence' y 'Absenteeism_hours')
 mes_pico_idx = RRHH_full.groupby('Month_absence')[
     'Absenteeism_hours'].sum().idxmax()
 meses_map = {1: 'Enero', 2: 'Febrero', 3: 'Marzo', 4: 'Abril', 5: 'Mayo', 6: 'Junio',
              7: 'Julio', 8: 'Agosto', 9: 'Septiembre', 10: 'Octubre', 11: 'Noviembre', 12: 'Diciembre'}
 mes_pico_nombre = meses_map.get(mes_pico_idx, f"Mes {mes_pico_idx}")
 
-# 2. Motivo modal (Basado en 'Reason_Description' para que Verônica lo entienda mejor)
-# Si prefieres el número, cambia a 'Reason_absence'
 motivo_modal = RRHH_full['Reason_Description'].mode()[0]
 
-# 3. Índice de eficiencia relativa (Basado en 'Hit_target' y 'Work_load_Average_day')
 eficiencia_relativa = (RRHH_full['Hit_target'].mean(
 ) / RRHH_full['Work_load_Average_day'].mean()) * 100
 
-# 4. Porcentaje de empleados ausentes (Basado en 'ID' y 'Absenteeism_hours')
+
 total_empleados = RRHH_full['ID'].nunique()
 empleados_ausentes = RRHH_full[RRHH_full['Absenteeism_hours'] > 0]['ID'].nunique(
 )
 porcentaje_ausencia = (empleados_ausentes / total_empleados) * 100
-st.divider()
 
 
 def clasificar_perfil_id(row):
@@ -1166,11 +502,8 @@ def clasificar_perfil_id(row):
 
 @st.cache_data
 def procesar_datos():
-    # Cargar datos
     RRHH = pd.read_csv("full_RRHH.csv")
     df_analisis = RRHH.copy()
-
-    # --- 1. CREACIÓN DE BINS (BASE DEL SISTEMA) ---
     df_analisis['Riesgo_Distancia'] = pd.cut(
         df_analisis['Distance_Residence_Work'],
         bins=[0, 16, 49, 53],
@@ -1182,8 +515,6 @@ def procesar_datos():
         bins=[0, 244, 284, 400],
         labels=['Ligera', 'Óptima', 'Saturación']
     )
-
-    # --- 2. AGRUPACIÓN POR EMPLEADO ---
     df_empleados = df_analisis.groupby('ID').agg({
         'Service_time': 'max',
         'Distance_Residence_Work': 'mean',
@@ -1191,8 +522,6 @@ def procesar_datos():
         'Hit_target': 'mean',
         'Disciplinary_failure': 'max',
     }).reset_index()
-
-    # 🔥 IMPORTANTE: recalcular bins a nivel empleado (CONSISTENCIA)
     df_empleados['Riesgo_Distancia'] = pd.cut(
         df_empleados['Distance_Residence_Work'],
         bins=[0, 16, 49, 53],
@@ -1212,15 +541,12 @@ def procesar_datos():
     return df_analisis, df_empleados
 
 
-# Ejecutar proceso
 try:
     df_analisis, df_empleados = procesar_datos()
 except FileNotFoundError:
     st.error("⚠️ No se encontró el archivo 'full_RRHH.csv'. Por favor, cárgalo en la carpeta del proyecto.")
     st.stop()
 
-
-# Datos consolidados de tus 3 semanas
 data = {
     'Semana': ['Semana 1', 'Semana 2', 'Semana 3'],
     'Ausencia (%)': [91.67, 96.30, 95.07],
@@ -1230,38 +556,25 @@ data = {
 }
 
 df_evolucion = pd.DataFrame(data)
-
-# --- CÁLCULOS PARA LOS NUEVOS KPIs ---
-
-# 1. Impacto de Cargas Familiares (Hijos)
-# Comparamos el promedio de horas de ausencia de quienes tienen hijos vs los que no
 promedio_hijos = RRHH_full[RRHH_full['Son'] > 0]['Absenteeism_hours'].mean()
 promedio_sin_hijos = RRHH_full[RRHH_full['Son']
                                == 0]['Absenteeism_hours'].mean()
 diff_familiar = promedio_hijos - promedio_sin_hijos
 
-# 2. Eficiencia de Desplazamiento (Costo por KM)
-# ¿Cuánto nos cuesta en transporte cada KM que recorre el empleado?
 costo_km_promedio = (RRHH_full['Transportation_expense'] /
                      RRHH_full['Distance_Residence_Work']).mean()
 
-# 3. Ratio de Hábitos Sociales (Social Drinkers)
-# ¿Qué porcentaje de las horas totales de ausencia vienen de "Social Drinkers"?
 horas_bebedores = RRHH_full[RRHH_full['Social_drinker']
                             == 1]['Absenteeism_hours'].sum()
 total_horas_abs = RRHH_full['Absenteeism_hours'].sum()
 pct_horas_social = (horas_bebedores / total_horas_abs) * 100
 
-# --- VISUALIZACIÓN EN STREAMLIT ---
-
 
 st.header("Evolución de Gestión de Absentismo")
 
-# Columnas para los KPIs actuales (Semana 3)
 kpi1, kpi2, kpi3, kpi4, kpi5 = st.columns(5)
 
 with kpi1:
-    # Comparamos 95.08 vs 95.10 (Semana 2)
     st.metric("Ausencia Actual", "95.07%")
 
 with kpi2:
@@ -1289,7 +602,6 @@ with kpi5:
         delta_color="normal",
         help="Porcentaje del total de horas de ausencia que corresponden a bebedores sociales."
     )
-# --- GRÁFICO DE TENDENCIA ACTUALIZADO ---
 fig_evolucion = px.line(
     df_evolucion,
     x='Semana',
@@ -1303,20 +615,17 @@ fig_evolucion = px.line(
     }
 )
 
-# --- ACTIVAR Y FORMATEAR LAS ETIQUETAS ---
+
 fig_evolucion.update_traces(
-    textposition="top center",  # Pone el número arriba del punto
-    texttemplate='%{y:.2f}%',   # Formato con 2 decimales y el símbolo %
-    mode="lines+markers+text"   # Asegura que se vean las 3 cosas
+    textposition="top center",
+    texttemplate='%{y:.2f}%',
+    mode="lines+markers+text"
 )
 
-# --- AJUSTE DE FONDO Y TAMAÑO DE EJES ---
 fig_evolucion.update_layout(
-    # Fondo transparente para integrarse a tu app
     paper_bgcolor="rgba(0,0,0,0)",
     plot_bgcolor="rgba(0,0,0,0)",
-    font_color="grey",  # Color de fuente para los textos
-
+    font_color="grey",
     # Título
     title=dict(
         font=dict(size=17),
@@ -1324,7 +633,6 @@ fig_evolucion.update_layout(
         xanchor='left'
     ),
 
-    # Leyenda arriba
     legend=dict(
         orientation="h",
         yanchor="bottom",
@@ -1339,38 +647,31 @@ fig_evolucion.update_layout(
     margin=dict(t=100, b=50)
 )
 
-# --- AUMENTAR TAMAÑO DE EJES X e Y ---
 fig_evolucion.update_xaxes(
-    title_font=dict(size=20, color="grey"),  # Título del eje X
-    tickfont=dict(size=16, color="grey"),  # Números/Semana del eje X
-    gridcolor="rgba(200, 200, 200, 0.1)"    # Cuadrícula muy sutil
+    title_font=dict(size=20, color="grey"),
+    tickfont=dict(size=16, color="grey"),
+    gridcolor="rgba(200, 200, 200, 0.1)"
 )
 
 fig_evolucion.update_yaxes(
-    title_font=dict(size=20, color="grey"),  # Título del eje Y
-    tickfont=dict(size=16, color="grey"),  # Números del eje Y
+    title_font=dict(size=20, color="grey"),
+    tickfont=dict(size=16, color="grey"),
     gridcolor="rgba(200, 200, 200, 0.1)",
-    range=[0, 105]  # Mantiene la perspectiva real de los datos
+    range=[0, 105]
 )
-
-# Renderizar
 st.plotly_chart(fig_evolucion, width='stretch',
                 key="linea_evolucion_final")
 
 st.divider()
 
-st.header("Distribución de Rendimiento por Perfil (Clasificación Manual)")
+st.header("Distribución de Rendimiento por Perfil")
 
-# 1. Aseguramos la limpieza de nombres
 df_empleados['Perfil_Riesgo'] = df_empleados['Perfil_Riesgo'].replace({
     'Junior Vulnerable': 'En desarrollo operativo'
 })
 
-# 2. Calculamos totales y frecuencias
 total_n = len(df_empleados)
 conteo = df_empleados['Perfil_Riesgo'].value_counts()
-
-# 3. Función auxiliar para el formato "Cantidad (Porcentaje%)"
 
 
 def fmt_manual(perfil):
@@ -1379,7 +680,6 @@ def fmt_manual(perfil):
     return f"{n} ({pct:.1f}%)"
 
 
-# 4. Renderizado de Columnas
 col1, col2, col3, col4 = st.columns(4)
 
 col1.metric(
@@ -1406,7 +706,6 @@ df_empleados['Perfil_Riesgo'] = df_empleados['Perfil_Riesgo'].replace({
     'Junior Vulnerable': 'En desarrollo operativo'
 })
 
-# 2. ACTUALIZACIÓN DE LA LISTA DE ORDEN (Muy importante)
 orden_perfiles = [
     'Perfil Estable',
     'En desarrollo operativo',
@@ -1414,7 +713,6 @@ orden_perfiles = [
     'Perfil de Inestabilidad'
 ]
 
-# 3. CREACIÓN DEL BOXPLOT
 fig_dispersion = px.box(
     df_empleados,
     x='Perfil_Riesgo',
@@ -1447,7 +745,7 @@ fig_dispersion.update_layout(
         title=dict(font=dict(size=18)),
         tickfont=dict(size=16),
         categoryorder='array',
-        categoryarray=orden_perfiles  # Esto elimina huecos vacíos
+        categoryarray=orden_perfiles
     ),
     yaxis=dict(
         title=dict(font=dict(size=18)),
@@ -1462,7 +760,7 @@ fig_dispersion.update_traces(marker=dict(line=dict(width=0)))
 
 st.plotly_chart(fig_dispersion, width='stretch', key="box_final_ok")
 
-# --- NOTA TÉCNICA AL PIE (CAPTION) ---
+
 st.markdown(f"""
 
         <p style="font-size: 13px; color: grey; line-height: 1.4;">
@@ -1473,13 +771,11 @@ st.markdown(f"""
     """, unsafe_allow_html=True)
 
 # ==========================================================
-# 🔍 DETALLE ESTADÍSTICO: CLASIFICACIÓN MANUAL
+#  DETALLE ESTADÍSTICO: CLASIFICACIÓN MANUAL
 # ==========================================================
-with st.expander("Ver Caracterización de Perfiles Manuales (Reglas de Negocio)"):
+with st.expander("Ver Reglas de Negocio"):
     st.write("Resumen de métricas basado en la lógica de clasificación original:")
 
-    # 1. Calculamos las medias sobre el dataframe ANTES de que la IA lo sobrescriba
-    # Nota: Asegúrate de que 'Perfil_Riesgo' en este punto del código aún tenga tus etiquetas manuales
     df_detalle_manual = df_empleados.groupby('Perfil_Riesgo').agg({
         'ID': 'count',
         'Work_load_Average_day': 'mean',
@@ -1488,19 +784,17 @@ with st.expander("Ver Caracterización de Perfiles Manuales (Reglas de Negocio)"
         'Hit_target': 'mean'
     }).rename(columns={'ID': 'Nº Empleados'})
 
-    # 2. Aplicar formato y estilo
     df_manual_fmt = df_detalle_manual.style.format({
         'Work_load_Average_day': '{:.1f} unidades',
         'Distance_Residence_Work': '{:.1f} km',
         'Service_time': '{:.1f} años',
         'Hit_target': '{:.1f}%'
-        # Azul para diferenciar de la IA
     }).background_gradient(cmap='Blues', subset=['Hit_target'])
 
     st.dataframe(df_manual_fmt, width='stretch')
 
     st.caption(
-        "Nota: Estos valores reflejan la situación actual bajo tus criterios de segmentación manual.")
+        "Nota: Estos valores reflejan la situación actual bajo nuestros criterios.")
 
 
 with st.expander("Ver Validación Estadística (ANOVA)"):
@@ -1525,8 +819,6 @@ with st.expander("Ver Validación Estadística (ANOVA)"):
     else:
         st.warning("⚠️ No se detectaron diferencias significativas.")
 
-# --- Debajo de st.plotly_chart(fig_dispersion, ...) ---
-
 st.info("""
 **Lógica de Clasificación de Perfiles**
 
@@ -1540,19 +832,14 @@ st.info("""
 
 st.divider()
 
-# X debe contener las columnas que usaste para entrenar
 X = df_empleados[['Service_time',
                   'Distance_Residence_Work', 'Work_load_Average_day']]
 y = df_empleados['Perfil_Riesgo']
 
-# --- 2. ENTRENAMIENTO DEL MODELO (Define 'clf' globalmente aquí) ---
-# Lo limitamos a profundidad 3 para que sea consistente con tu análisis
 clf = DecisionTreeClassifier(
     max_depth=3, class_weight='balanced', random_state=42)
 clf.fit(X, y)
 
-# --- 1. CÁLCULO DE MÉTRICAS POR SEGMENTO ---
-# Agrupamos por Perfil para obtener las medias
 df_resumen = df_empleados.groupby('Perfil_Riesgo').agg({
     'ID': 'count',
     'Work_load_Average_day': 'mean',
@@ -1561,51 +848,39 @@ df_resumen = df_empleados.groupby('Perfil_Riesgo').agg({
     'Service_time': 'mean'
 }).rename(columns={'ID': 'Cantidad'}).reset_index()
 
-
 # ==========================================================
-# 🤖 BLOQUE DE INTELIGENCIA ARTIFICIAL (CLUSTERING)
+#  BLOQUE DE INTELIGENCIA ARTIFICIAL (CLUSTERING)
 # ==========================================================
 
-# 1. Preparación de datos: Seleccionamos las variables de influencia
 columnas_ia = ['Service_time',
                'Distance_Residence_Work', 'Work_load_Average_day']
 X_ia = df_empleados[columnas_ia]
 
-# 2. Normalización: Escalamos los datos para que sean comparables
 scaler = StandardScaler()
 X_scaled = scaler.fit_transform(X_ia)
 
-# 3. Ejecución del Modelo: La IA busca 4 grupos automáticamente
 kmeans = KMeans(n_clusters=4, random_state=42, n_init=10)
 df_empleados['Cluster_Num'] = kmeans.fit_predict(X_scaled)
 
 # ==========================================================
 # 🧠 MAPEADOR CORREGIDO (Basado en datos reales de Imagen 3)
 # ==========================================================
-# 1. Obtenemos las medias de cada cluster numérico
+
 resumen_ia = df_empleados.groupby('Cluster_Num').agg({
     'Service_time': 'mean',
     'Distance_Residence_Work': 'mean',
     'Work_load_Average_day': 'mean'
 })
 
-# 2. Lógica Automática de Identificación
-# El que tiene menos antigüedad es el Junior (En desarrollo)
 id_junior = resumen_ia['Service_time'].idxmin()
-
-# El que tiene más distancia es el Saturado Logístico
 id_logistico = resumen_ia['Distance_Residence_Work'].idxmax()
-
-# El que tiene más carga laboral es el de Inestabilidad
-# (Excluimos al logístico si coincide para no repetir)
 id_inestable = resumen_ia['Work_load_Average_day'].idxmax()
 
-# El que sobra es el Estable
 todos = set(resumen_ia.index)
 usados = {id_junior, id_logistico, id_inestable}
 id_estable = list(todos - usados)[0] if len(todos - usados) > 0 else None
 
-# 3. Creamos el mapeador dinámico
+
 mapeo_dinamico = {
     str(id_junior): "En desarrollo operativo",
     str(id_logistico): "Saturado Logístico",
@@ -1613,11 +888,9 @@ mapeo_dinamico = {
     str(id_estable): "Perfil Estable"
 }
 
-# 4. Aplicamos al DataFrame
 df_empleados['Perfil_Riesgo'] = df_empleados['Cluster_Num'].astype(
     str).map(mapeo_dinamico)
 
-# 6. RECALCULAR RESUMEN: Para que tus tablas y métricas m1, m2... se actualicen
 df_resumen = df_empleados.groupby('Perfil_Riesgo').agg({
     'ID': 'count',
     'Work_load_Average_day': 'mean',
@@ -1626,20 +899,13 @@ df_resumen = df_empleados.groupby('Perfil_Riesgo').agg({
     'Service_time': 'mean'
 }).rename(columns={'ID': 'Cantidad'}).reset_index()
 
-# ==========================================================
-# 📊 A PARTIR DE AQUÍ COMIENZA TU INFORME (YA ACTUALIZADO)
-# ==========================================================
 
 st.subheader("Resumen Operativo por Segmento (Validado por IA)")
 
-# 1. Calculamos el total y las frecuencias
 total_empleados = len(df_empleados)
 counts = df_empleados['Perfil_Riesgo'].value_counts()
 
-# 2. Creamos las columnas
 m1, m2, m3, m4 = st.columns(4)
-
-# Función auxiliar para formatear: "Cantidad (Porcentaje%)"
 
 
 def fmt_metric(label):
@@ -1648,7 +914,6 @@ def fmt_metric(label):
     return f"{count} ({pct:.1f}%)"
 
 
-# 3. Renderizado de métricas
 m1.metric(
     "Perfil Estable",
     fmt_metric("Perfil Estable"),
@@ -1675,13 +940,11 @@ m4.metric(
     delta_color="inverse"
 )
 
-# --- 1. APLICAR JITTER ---
 df_jitter = df_empleados.copy()
 df_jitter['Distancia en Km'] = df_jitter['Distance_Residence_Work'] + \
     np.random.uniform(-0.3, 0.3, len(df_jitter))
 df_jitter['Antigüedad'] = df_jitter['Service_time'] + \
     np.random.uniform(-0.3, 0.3, len(df_jitter))
-# --- CONFIGURACIÓN DEL GRÁFICO CON FONDO #EEEEEE ---
 fig_scatter = px.scatter(
     df_jitter,
     x='Distancia en Km',
@@ -1689,7 +952,6 @@ fig_scatter = px.scatter(
     color='Perfil_Riesgo',
     size='Hit_target',
     facet_col='Riesgo_Carga',
-    # Cambiamos a template 'plotly' o 'white' para que los ejes sean oscuros por defecto
     template='plotly_white',
     size_max=12,
     color_discrete_map={
@@ -1700,11 +962,11 @@ fig_scatter = px.scatter(
     }
 )
 
-# --- PERSONALIZACIÓN DEL FONDO Y TEXTOS ---
+
 fig_scatter.update_layout(
-    paper_bgcolor="#EEEEEE",  # Fondo exterior
-    plot_bgcolor="#EEEEEE",   # Fondo del área del gráfico
-    font_color="#222222",      # Texto en gris muy oscuro para contraste
+    paper_bgcolor="#EEEEEE",
+    plot_bgcolor="#EEEEEE",
+    font_color="#222222",
     margin=dict(t=100, b=100),
     legend=dict(
         orientation="h",
@@ -1716,11 +978,10 @@ fig_scatter.update_layout(
     )
 )
 
-# Ajuste de ejes para que se vean bien sobre el gris claro
 fig_scatter.update_xaxes(
     title_font=dict(size=18, color="#444444"),
     tickfont=dict(size=14, color="#444444"),
-    gridcolor="white",  # Grillas blancas sobre fondo gris quedan muy elegantes
+    gridcolor="white",
     linecolor="#444444",
     matches=None,
     showticklabels=True
@@ -1735,24 +996,16 @@ fig_scatter.update_yaxes(
     showticklabels=True
 )
 
-# Títulos de las columnas (facetas)
 fig_scatter.for_each_annotation(lambda a: a.update(
     text=f"<b>{a.text.split('=')[-1]}</b>",
     font=dict(size=16, color="#222222")
 ))
 
-# Eliminar bordes de los puntos para limpieza visual
 fig_scatter.update_traces(marker=dict(line=dict(width=0), opacity=0.8))
 
 
 st.plotly_chart(fig_scatter, width='stretch', key="scatter_claro")
 
-# ==========================================================
-# ⚡ UMBRALES TÉCNICOS DE GESTIÓN (VALORES VALIDADOS)
-# ==========================================================
-# ==========================================================
-# ⚡ UMBRALES TÉCNICOS DE GESTIÓN (VALORES VALIDADOS)
-# ==========================================================
 with st.expander("Ver Umbrales de Carga detectados por el Modelo"):
 
     c1, c2, c3 = st.columns(3)
@@ -1777,14 +1030,11 @@ with st.expander("Ver Umbrales de Carga detectados por el Modelo"):
         *Riesgo inminente de fatiga, errores y baja en el rendimiento.*
         """)
 
-
 # ==========================================================
-# 🔍 DETALLE ESTADÍSTICO DE LOS CLUSTERS
+# DETALLE ESTADÍSTICO DE LOS CLUSTERS
 # ==========================================================
 with st.expander("Ver Caracterización Detallada de Perfiles (Medias IA)"):
     st.write("A continuación se presentan los valores promedio que definen matemáticamente a cada grupo identificado por la IA:")
-
-    # 1. Agrupamos por Perfil y calculamos las medias
     df_detalle_clusters = df_empleados.groupby('Perfil_Riesgo').agg({
         'ID': 'count',
         'Work_load_Average_day': 'mean',
@@ -1793,14 +1043,11 @@ with st.expander("Ver Caracterización Detallada de Perfiles (Medias IA)"):
         'Hit_target': 'mean'
     }).rename(columns={'ID': 'Nº Empleados'})
 
-    # 2. Formateamos la tabla para que sea más legible
-    # Redondeamos a 1 decimal y añadimos estilos
     df_formatted = df_detalle_clusters.style.format({
         'Work_load_Average_day': '{:.1f} unidades',
         'Distance_Residence_Work': '{:.1f} km',
         'Service_time': '{:.1f} años',
         'Hit_target': '{:.1f}%'
-        # Resalta el rendimiento
     }).background_gradient(cmap='Greens', subset=['Hit_target'])
 
     st.dataframe(df_formatted, width='stretch')
@@ -1813,8 +1060,7 @@ with st.expander("Ver Caracterización Detallada de Perfiles (Medias IA)"):
     * **Antigüedad:** Nivel de experiencia del grupo.
     * **Hit Target:** Rendimiento real alcanzado por cada perfil.
     """)
-
-# ==========================================================
-# 🛰️ PANEL DE CONTROL IA: IMPORTANCIA Y SIMULACIÓN
-# ==========================================================
-st.divider()
+st.markdown(
+    "<hr><p style='text-align: center;'>© 2026 | Desarrollado por José, Laura, Dani y Cristina</p>",
+    unsafe_allow_html=True
+)
